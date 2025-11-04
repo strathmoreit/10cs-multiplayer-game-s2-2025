@@ -1,5 +1,5 @@
 # Strathmore multiplayer game for Y10 Computing
-# By N Stebbing September 2025
+# By N Stebbing September/October 2025
 # v7.0 implements socket.io using aiohttp as a server to manage network communication
 # Implemented multiplayer and chat.
 # v7.1 started 28/9/25 allows the game to run as local only if a server is not found

@@ -28,13 +28,15 @@ def _load_student_module():
 def make_player(color, projectiles_group, screen, x=PLAYER_START_X, y=PLAYER_START_Y):
     mod = _load_student_module()
     if mod and hasattr(mod, "Player"):
-        try:
-            return mod.Player(color, projectiles_group, screen, x, y)
-        except Exception as e:
-            print(f"[player_loader] student Player failed: {e!r}")
-    # fallback
-    from engine_base import BasePlayer
+        print("[player_loader] Attempting to use student Player class...")
+        # Try to create the player's instance
+        return mod.Player(color, projectiles_group, screen, x, y)
+
+    # Fallback only if Player does not exist at all
+    from modules.entities import BasePlayer
+    print("[player_loader] No Player class found — using default BasePlayer.")
     return BasePlayer(color, projectiles_group, screen, x, y, playable=True)
+
 
 
 # import importlib
