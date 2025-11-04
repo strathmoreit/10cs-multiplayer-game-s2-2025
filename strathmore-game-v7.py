@@ -94,11 +94,20 @@ def update_game_state(state):
             state.player.move_back()
             state.rooms_group.update()
 
+def draw_group(surface, group):
+    for spr in group.sprites():
+        if hasattr(spr, "draw"):
+            spr.draw(surface)          # lets BasePlayer run facing/idle/animation
+        else:
+            surface.blit(spr.image, spr.rect)
+
 def draw_game(state):
     '''draws all elements to the screen'''
     state.screen.blit(state.background, (0,0))
     state.rooms_group.draw(state.screen) 
-    state.player_group.draw(state.screen) # the player group only contains the local player
+    #state.player_group.draw(state.screen) # the player group only contains the local player
+    draw_group(state.screen, state.player_group)
+    
     for op in state.players_group.values():
         op.update(state.player.x, state.player.y)  # draw relative to camera
         state.screen.blit(op.image, op.rect)

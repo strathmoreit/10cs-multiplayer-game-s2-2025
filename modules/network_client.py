@@ -279,7 +279,9 @@ class NetClient:
     
     def _my_appearance(self):
         P = self.state.player.__class__
-        cols  = int(getattr(P, "SHEET_COLS", 9))
+        #cols  = int(getattr(P, "SHEET_COLS", 9))
+        cols = int(getattr(P, "SHEET_COLS", None) or getattr(P, "SHEET_COUNT", 1))
+
         count = int(getattr(P, "SHEET_COUNT", 1))
         pad   = int(getattr(P, "SHEET_PAD", 0))
         scale = float(getattr(P, "SHEET_SCALE", 1.0))

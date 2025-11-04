@@ -393,71 +393,190 @@ class Player_V7(pygame.sprite.Sprite):
         self.get_image()
         self.move()    
 
-class BasePlayer(pygame.sprite.Sprite):
-    # Students set these two only:
-    SHEET       = None          # e.g. "assets/my_character.png"
-    SHEET_COUNT = 1             # total frames (1 = no animation)
 
-    # Defaults they usually won't touch:
-    SHEET_COLS  = 9             # your default
-    SHEET_PAD   = 0
+class BasePlayer(pygame.sprite.Sprite):
+    # --- Students set only these two ---
+    SHEET       = None          # e.g. "assets/my_character.png"
+    SHEET_COUNT = 1             # total frames; 1 = no animation
+
+    # --- Defaults students rarely touch ---
+    SHEET_COLS  = None          # None = single-row strip split into SHEET_COUNT
+    SHEET_PAD   = 0             # only used by grid loader
     SHEET_SCALE = 1.0
+    ANIM_SPEED  = 5             # frames between steps (bigger = slower)
 
     def __init__(self, colour, projectiles_group, screen, x=PLAYER_START_X, y=PLAYER_START_Y, playable=True, speed=PLAYER_SPEED):
         super().__init__()
         self.projectiles = projectiles_group
         self.screen = screen
-        self.x, self.y = float(x), float(y)      # world coords
-        self.prev_x, self.prev_y = self.x, self.y
+
+        # world position & movement (students usually manipulate these)
+        self.x = float(x)
+        self.y = float(y)
+        self.prev_x = self.x
+        self.prev_y = self.y
         self.velocity_x = 0.0
         self.velocity_y = 0.0
         self.speed = float(speed)
+
         self.playable = playable
         self.input_enabled = True
 
-        # Load frames (or fall back to a coloured square)
+        # facing & animation state (mirrors your original behaviour)
+        self.facing = "right"           # "left" or "right"
+        self.current_frame = 0          # 0 = idle; walking loops 1..end
+        self.frame_count   = 0          # counts ticks up to ANIM_SPEED
+
+        # load frames or fallback square
         self.frames = self._load_frames_or_square(colour)
-        self.image  = self.frames[0]
-        # Camera-locked rects (matches your map collision path)
-        self.rect = self.image.get_rect(center=(WIDTH//2, HEIGHT//2))
-        self.hit_rect = pygame.Rect(0, 0, 40, 40); self.hit_rect.center = (WIDTH//2, HEIGHT//2)
+        self.image  = self.frames[self.current_frame]
 
-    def move_back(self):
-        """Rollback to the position at the start of this frame."""
-        self.x, self.y = self.prev_x, self.prev_y
+        # camera-locked draw rect and a simple hit rect
+        self.rect = self.image.get_rect(center=(WIDTH // 2, HEIGHT // 2))
+        self.hit_rect = pygame.Rect(0, 0, 40, 40)
+        self.hit_rect.center = (WIDTH // 2, HEIGHT // 2)
 
-    # ---------------- helpers students can rely on ----------------
-    def get_frame(self, idx: int, *, flip=False):
-        """Return a frame Surface by index (clamped). Optionally flip horizontally."""
-        if not self.frames:  # super defensive
-            return self.image
-        idx = max(0, min(int(idx), len(self.frames)-1))
-        frame = self.frames[idx]
-        return pygame.transform.flip(frame, True, False) if flip else frame
+    # Intentionally empty so students can own update() logic safely.
+    def update(self):
+        return
 
-    def center_on_screen(self):
-        """Keep draw/collision rects screen-centered (camera-locked)."""
+    # Animation happens here so students never have to call super().update()
+    def draw(self, surface):
+        # Work out deltas since the last frame (supports "set x/y directly" style)
+        dx = float(self.x) - float(self.prev_x)
+        dy = float(self.y) - float(self.prev_y)
+
+        # If velocities exist, we can also consider them (but position deltas are enough)
+        vx = getattr(self, "velocity_x", 0.0)
+        vy = getattr(self, "velocity_y", 0.0)
+
+        # Moving if either position changed or velocity is non-zero
+        moving = (abs(dx) > 0.01) or (abs(dy) > 0.01) or (abs(vx) > 0.01) or (abs(vy) > 0.01)
+
+        # Facing: prefer horizontal delta; fall back to velocity if no delta
+        if dx < -0.01 or vx < -0.01:
+            self.facing = "left"
+        elif dx > 0.01 or vx > 0.01:
+            self.facing = "right"
+
+        # Step animation (idle → frame 0; walking loops 1..end)
+        if len(self.frames) > 1:
+            if not moving:
+                self.current_frame = 0
+                self.frame_count = 0
+            else:
+                if self.current_frame == 0:
+                    self.current_frame = 1
+                    self.frame_count = 0
+                else:
+                    self.frame_count = self.frame_count + 1
+                    if self.frame_count > int(self.ANIM_SPEED):
+                        self.current_frame = self.current_frame + 1
+                        self.frame_count = 0
+                        if self.current_frame > (len(self.frames) - 1):
+                            self.current_frame = 1
+
+        # Compose frame with left/right flip
+        frame = self.frames[self.current_frame]
+        if self.facing == "left":
+            frame = pygame.transform.flip(frame, True, False)
+        self.image = frame
+
+        # Camera-locked draw + collision rects
         self.rect = self.image.get_rect(center=(WIDTH // 2, HEIGHT // 2))
         self.hit_rect.center = (WIDTH // 2, HEIGHT // 2)
 
-    # ---------------- internal: sheet loading or square fallback ----------------
+        # Draw
+        surface.blit(self.image, self.rect)
+
+        # IMPORTANT: update previous position AFTER drawing so next frame sees deltas
+        self.prev_x, self.prev_y = float(self.x), float(self.y)
+
+
+    # ---------------- helpers for students/engine ----------------
+    def move_back(self):
+        self.x, self.y = self.prev_x, self.prev_y
+
+    def get_frame(self, idx, *, flip=False):
+        if not self.frames:
+            return self.image
+        if idx < 0:
+            idx = 0
+        if idx > len(self.frames) - 1:
+            idx = len(self.frames) - 1
+        frame = self.frames[int(idx)]
+        if flip:
+            frame = pygame.transform.flip(frame, True, False)
+        return frame
+
+    # ---------------- internal: load frames or fallback ----------------
     def _load_frames_or_square(self, colour):
         try:
-            if self.SHEET and os.path.exists(self.SHEET) and self.SHEET_COUNT > 0:
-                frames = load_frames_grid(
-                    self.SHEET,
-                    cols=int(self.SHEET_COLS),
-                    count=int(self.SHEET_COUNT),
-                    pad=int(self.SHEET_PAD),
-                )
-                if frames:  # got frames from the sheet
+            if self.SHEET and os.path.exists(self.SHEET) and int(self.SHEET_COUNT) > 0:
+                if self.SHEET_COLS is None:
+                    frames = self._load_sprite_strip(self.SHEET, int(self.SHEET_COUNT))
+                else:
+                    frames = self._load_frames_grid(self.SHEET, int(self.SHEET_COLS), int(self.SHEET_COUNT), int(self.SHEET_PAD))
+                if frames:
+                    if float(self.SHEET_SCALE) != 1.0:
+                        scaled = []
+                        i = 0
+                        while i < len(frames):
+                            f = frames[i]
+                            w, h = f.get_size()
+                            nw = int(w * float(self.SHEET_SCALE))
+                            nh = int(h * float(self.SHEET_SCALE))
+                            scaled.append(pygame.transform.scale(f, (nw, nh)))
+                            i = i + 1
+                        frames = scaled
                     return frames
-        except Exception as e:
+        except Exception:
             pass
+
         # Fallback single-frame so game still runs
-        surf = pygame.Surface((20, 20), pygame.SRCALPHA); surf.fill(colour)
+        surf = pygame.Surface((20, 20), pygame.SRCALPHA)
+        surf.fill(colour)
         self.SHEET_COUNT = 1
         return [surf]
+
+    # 1-row strip: width split into frame_count equal parts
+    def _load_sprite_strip(self, path, frame_count):
+        sheet = pygame.image.load(path).convert_alpha()
+        sw, sh = sheet.get_size()
+        fw = sw // int(frame_count)
+        frames = []
+        x = 0
+        i = 0
+        while i < frame_count:
+            rect = pygame.Rect(x, 0, fw, sh)
+            frames.append(sheet.subsurface(rect).copy())
+            x = x + fw
+            i = i + 1
+        return frames
+
+    # Simple grid loader (optional path if you ever set SHEET_COLS)
+    def _load_frames_grid(self, path, cols, count, pad):
+        sheet = pygame.image.load(path).convert_alpha()
+        sw, sh = sheet.get_size()
+        # crude guess of rows from count/cols
+        rows = int(math.ceil(float(count) / float(cols)))
+        cw = (sw - (cols - 1) * pad) // cols
+        ch = (sh - (rows - 1) * pad) // rows
+        frames = []
+        r = 0
+        while r < rows:
+            c = 0
+            while c < cols:
+                if len(frames) >= count:
+                    break
+                x = c * (cw + pad)
+                y = r * (ch + pad)
+                rect = pygame.Rect(x, y, cw, ch)
+                frames.append(sheet.subsurface(rect).copy())
+                c = c + 1
+            r = r + 1
+        return frames
+
 
 class Other_Player_V7(pygame.sprite.Sprite):
     def __init__(self):
