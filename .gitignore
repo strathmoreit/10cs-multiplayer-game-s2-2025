@@ -1,1 +1,7 @@
 student_code_demo.py
+__pycache__/
+modules/__pycache__/
+.venv/
+.vscode/
+.DS_Store
+Thumbs.db

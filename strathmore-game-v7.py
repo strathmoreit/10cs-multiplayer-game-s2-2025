@@ -31,8 +31,8 @@ class GameState:
         self.server = None
         self.message_cache = []  # list of surfaces containing rendered messages ready to blit
         self.message_list = "" # new messages read from network ready to be put in the cache
-        self.chat_font = pygame.font.Font('assets\FreeSans.ttf', 16)
-        self.menu_font = pygame.font.Font('assets\FreeSans.ttf', 100) # used when showing the menu, define here as globals to avoid repeating code in the game loop
+        self.chat_font = pygame.font.Font('assets/FreeSans.ttf', 16)
+        self.menu_font = pygame.font.Font('assets/FreeSans.ttf', 100) # used when showing the menu, define here as globals to avoid repeating code in the game loop
         self.menu_text = self.menu_font.render("Strathmore Game", True, (128,128,255)) # used when showing the menu, define here as globals to avoid repeating code in the game loop
         self.player_data = {} # hold the data on network player sprites to be broadcast
         self.players_group = {} # holds the Other_Player sprite objects to be displayed
