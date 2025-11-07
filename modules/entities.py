@@ -39,32 +39,40 @@ def pallete_swap(image, old_color, new_color):
     image_copy2.set_colorkey((236,0,140))
     return image_copy2
 
-def load_frames_grid(sheet_path, *, cols, count, pad=0, origin=(0, 0)):
+def load_frames_grid(
+    sheet_path, *, cols, count, pad=0, origin=(0, 0),
+    frame_w=None, frame_h=None
+):
     """
     Slice a uniform grid sheet into frames (no JSON).
-    - cols: number of columns you packed with
-    - count: total frames to extract (stop early if last row isn't full)
-    - pad: pixels between cells (the --pad used when packing)
-    - origin: top-left offset if your frames don't start at (0,0)
+    - cols: number of columns in the sheet
+    - count: total frames to extract
+    - pad: pixels between cells
+    - origin: top-left offset where the first cell starts
+    - frame_w/frame_h: override cell size (if None, derive from sheet)
     """
     sheet = pygame.image.load(sheet_path).convert_alpha()
     sw, sh = sheet.get_size()
 
     rows = math.ceil(count / cols)
-    # derive cell size from sheet size, cols/rows, and padding
-    fw = (sw - (cols - 1) * pad - origin[0]) // cols
-    fh = (sh - (rows - 1) * pad - origin[1]) // rows
+
+    # Derive sizes unless overridden
+    fw = frame_w if frame_w is not None else (sw - origin[0] - (cols - 1) * pad) // cols
+    fh = frame_h if frame_h is not None else (sh - origin[1] - (rows - 1) * pad) // rows
 
     frames = []
+    y = origin[1]
     for r in range(rows):
+        x = origin[0]
         for c in range(cols):
             if len(frames) >= count:
                 break
-            x = origin[0] + c * (fw + pad)
-            y = origin[1] + r * (fh + pad)
             rect = pygame.Rect(x, y, fw, fh)
-            frames.append(sheet.subsurface(rect).copy())  # copy() to own pixels
+            frames.append(sheet.subsurface(rect).copy())
+            x += fw + pad
+        y += fh + pad
     return frames
+
 
 
 # When drawing to the screen everything is offset in relation to how far the player has moved.
@@ -554,29 +562,10 @@ class BasePlayer(pygame.sprite.Sprite):
             i = i + 1
         return frames
 
-    # Simple grid loader (optional path if you ever set SHEET_COLS)
+    # This wraps the global load_frames_grid function. Added this after accidentally creating a second version of it here
     def _load_frames_grid(self, path, cols, count, pad):
-        sheet = pygame.image.load(path).convert_alpha()
-        sw, sh = sheet.get_size()
-        # crude guess of rows from count/cols
-        rows = int(math.ceil(float(count) / float(cols)))
-        cw = (sw - (cols - 1) * pad) // cols
-        ch = (sh - (rows - 1) * pad) // rows
-        frames = []
-        r = 0
-        while r < rows:
-            c = 0
-            while c < cols:
-                if len(frames) >= count:
-                    break
-                x = c * (cw + pad)
-                y = r * (ch + pad)
-                rect = pygame.Rect(x, y, cw, ch)
-                frames.append(sheet.subsurface(rect).copy())
-                c = c + 1
-            r = r + 1
-        return frames
-
+        # Fix frame width at 60px; height still derived from rows
+        return load_frames_grid(path, cols=cols, count=count, pad=pad, frame_w=60)
 
 class Other_Player_V7(pygame.sprite.Sprite):
     def __init__(self):
