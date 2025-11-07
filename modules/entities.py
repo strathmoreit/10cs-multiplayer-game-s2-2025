@@ -40,9 +40,7 @@ def pallete_swap(image, old_color, new_color):
     return image_copy2
 
 def load_frames_grid(
-    sheet_path, *, cols, count, pad=0, origin=(0, 0),
-    frame_w=None, frame_h=None
-):
+    sheet_path, *, cols, count, pad=0, origin=(0, 0), frame_w=None, frame_h=None):
     """
     Slice a uniform grid sheet into frames (no JSON).
     - cols: number of columns in the sheet
@@ -551,7 +549,8 @@ class BasePlayer(pygame.sprite.Sprite):
     def _load_sprite_strip(self, path, frame_count):
         sheet = pygame.image.load(path).convert_alpha()
         sw, sh = sheet.get_size()
-        fw = sw // int(frame_count)
+        #fw = sw // int(frame_count)
+        fw = 60
         frames = []
         x = 0
         i = 0
