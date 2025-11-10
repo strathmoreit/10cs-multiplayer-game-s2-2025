@@ -783,9 +783,26 @@ class GameEntity(pygame.sprite.Sprite):
         self.y += velocity_y
         self.rect.center = (self.x, self.y)
     
-    def update(self):
-        self.rect = self.image.get_rect(center=(self.x-self.player.x+(WIDTH//2),self.y-self.player.y+(HEIGHT//2)))
+    #def update(self):
+        #self.rect = self.image.get_rect(center=(self.x-self.player.x+(WIDTH//2),self.y-self.player.y+(HEIGHT//2)))
+    def update(self, cam_x=None, cam_y=None, screen_w=None, screen_h=None):
+        """
+        Update screen-space rect using camera (defaults to your local player as camera).
+        Call as: entity.update(state.player.x, state.player.y, WIDTH, HEIGHT)
+        """
+        if cam_x is None:
+            cam_x = getattr(self.player, "x", 0)
+        if cam_y is None:
+            cam_y = getattr(self.player, "y", 0)
+        if screen_w is None:
+            screen_w = 800
+        if screen_h is None:
+            screen_h = 600
 
+        # Convert world -> screen
+        sx = int(self.x - cam_x + (screen_w // 2))
+        sy = int(self.y - cam_y + (screen_h // 2))
+        self.rect = self.image.get_rect(center=(sx, sy))
 
 class Cafeteria(pygame.sprite.Sprite):
     def __init__(self, x, y, player):

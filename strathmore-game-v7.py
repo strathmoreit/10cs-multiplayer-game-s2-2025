@@ -12,6 +12,7 @@ from modules.settings import *
 from modules.ui import *
 from modules.network_client import NetClient
 from modules.player_loader import make_player
+from student_code import Crate
 
 SERVER_URL = "http://localhost:8000"  # or "http://<host-lan-ip>:8000" on students' PCs
 
@@ -39,6 +40,7 @@ class GameState:
         self.projectiles_group = pygame.sprite.Group()
         self.player_group = pygame.sprite.GroupSingle() # the current player of the local client, stored in a group for some reason that I forget now
         self.rooms_group = pygame.sprite.Group()
+        self.entities_group = pygame.sprite.Group()
         self.chat_box = None
 
 state = GameState()
@@ -86,13 +88,46 @@ def update_game_state(state):
     '''applies data recieved from the network in the last game loop'''
     state.player_group.update()
     state.projectiles_group.update()
+    for ent in state.entities_group:
+        ent.update(state.player.x, state.player.y, WIDTH, HEIGHT)
     state.rooms_group.update()
 
-    # Handle player-room collisions
-    for map in state.rooms_group:
-        if map.hit_test(state.player.hit_rect):
-            state.player.move_back()
-            state.rooms_group.update()
+    # Handle player collisions and interactions (rooms + solid entities)
+    collided = False
+
+    # 1) room/tiles 
+    for room in state.rooms_group:
+        if room.hit_test(state.player.hit_rect):
+            collided = True
+            break
+
+    # 2) entities 
+    for ent in state.entities_group:
+        # overlap check once
+        if not ent.rect.colliderect(state.player.hit_rect):
+            continue
+
+        # 1) button interaction first (so doors can open before blocking)
+        if state.player.interact_pressed and hasattr(ent, "can_interact") and ent.can_interact(state.player):
+            if hasattr(ent, "on_interact"):
+                ent.on_interact(state)
+
+        # 2) re-check solidity (it may have changed in on_interact)
+        is_solid = getattr(ent, "solid", False)
+        if is_solid:
+            # optional touch hook even for solids (e.g., damage, sound)
+            if hasattr(ent, "on_collide"):
+                ent.on_collide(state.player)
+            collided = True
+            break  # stop at first blocking contact
+
+        # 3) non-solid touch triggers (coins, pads, checkpoints, etc.)
+        if hasattr(ent, "on_collide"):
+            ent.on_collide(state.player)
+
+    # 3) resolve
+    if collided:
+        state.player.move_back()
 
 def draw_group(surface, group):
     for spr in group.sprites():
@@ -106,6 +141,7 @@ def draw_game(state):
     state.screen.blit(state.background, (0,0))
     state.rooms_group.draw(state.screen) 
     #state.player_group.draw(state.screen) # the player group only contains the local player
+    state.entities_group.draw(state.screen)
     draw_group(state.screen, state.player_group)
     
     for op in state.players_group.values():
@@ -135,6 +171,10 @@ if state.mode in ("client","auto"):
 # Set up Rooms
 cafeteria = Cafeteria(WIDTH//2,HEIGHT//2+200, state.player)
 state.rooms_group.add(cafeteria)
+
+# Add entities
+crate = Crate(0,0)
+state.entities_group.add(crate)
 
 # GAME LOOP
 while True:
