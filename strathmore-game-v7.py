@@ -12,7 +12,7 @@ from modules.settings import *
 from modules.ui import *
 from modules.network_client import NetClient
 from modules.player_loader import make_player
-from student_code import Crate
+from student_code import *
 
 SERVER_URL = "http://localhost:8000"  # or "http://<host-lan-ip>:8000" on students' PCs
 
@@ -42,6 +42,8 @@ class GameState:
         self.rooms_group = pygame.sprite.Group()
         self.entities_group = pygame.sprite.Group()
         self.chat_box = None
+        self.hud = HUD(font_size=20, max_msgs=4)
+        self.hud.set_score(0)
 
 state = GameState()
 
@@ -80,6 +82,45 @@ def handle_events(state):
                 state.chat_box.active = True
                 state.player.input_enabled = False    
 
+def _can_interact(ent, player, default_r=DEFAULT_INTERACT_RADIUS):
+    # allow per-entity override: ent.interact_radius = 72
+    r = getattr(ent, "interact_radius", default_r)
+    # prefer world x/y if present, else fall back to rect center
+    ex = getattr(ent, "x", ent.rect.centerx)
+    ey = getattr(ent, "y", ent.rect.centery)
+    dx = ex - player.x
+    dy = ey - player.y
+    return (dx*dx + dy*dy) <= (r*r), (dx*dx + dy*dy)
+    
+def run_interactions(state):
+    player = state.player
+    if not player.interact_pressed:
+        return
+
+    nearest = None
+    best_d2 = None
+
+    for ent in state.entities_group:
+        # must actually support interaction
+        if not hasattr(ent, "on_interact"):
+            continue
+        ok, d2 = _can_interact(ent, player)
+        if not ok:
+            continue
+        if nearest is None or d2 < best_d2:
+            nearest, best_d2 = ent, d2
+
+    if nearest is None:
+        return
+
+    # optional per-entity cooldown
+    now = pygame.time.get_ticks()
+    cd = getattr(nearest, "_cooldown_ms", 200)
+    last = getattr(nearest, "_last_interact_time", 0)
+    if now - last >= cd:
+        nearest._last_interact_time = now
+        nearest.on_interact(state)
+
 def update_game_state(state):
     # --- snapshot player position BEFORE any updates this frame ---
     if state.player is not None:
@@ -92,7 +133,10 @@ def update_game_state(state):
         ent.update(state.player.x, state.player.y, WIDTH, HEIGHT)
     state.rooms_group.update()
 
-    # Handle player collisions and interactions (rooms + solid entities)
+    # Handle interactions by finding the nearest interactive object within DEFAULT_INTERACT_RADIUS
+    run_interactions(state)
+
+    # Handle player collisions (rooms + solid entities)
     collided = False
 
     # 1) room/tiles 
@@ -107,12 +151,7 @@ def update_game_state(state):
         if not ent.rect.colliderect(state.player.hit_rect):
             continue
 
-        # 1) button interaction first (so doors can open before blocking)
-        if state.player.interact_pressed and hasattr(ent, "can_interact") and ent.can_interact(state.player):
-            if hasattr(ent, "on_interact"):
-                ent.on_interact(state)
-
-        # 2) re-check solidity (it may have changed in on_interact)
+        # 2a) re-check solidity (it may have changed in on_interact)
         is_solid = getattr(ent, "solid", False)
         if is_solid:
             # optional touch hook even for solids (e.g., damage, sound)
@@ -121,7 +160,7 @@ def update_game_state(state):
             collided = True
             break  # stop at first blocking contact
 
-        # 3) non-solid touch triggers (coins, pads, checkpoints, etc.)
+        # 2b) non-solid touch triggers (coins, pads, checkpoints, etc.)
         if hasattr(ent, "on_collide"):
             ent.on_collide(state.player)
 
@@ -151,6 +190,9 @@ def draw_game(state):
     state.chat_box.draw(state.screen)
     draw_messages(state)
 
+    state.hud.update()
+    state.hud.draw(state.screen)
+
 # Set up the game
 state.player = make_player(RED, state.projectiles_group, state.screen, PLAYER_START_X, PLAYER_START_Y)
 #state.player = Player(RED, state.projectiles_group,state.screen)  #Debug code - revert to the player class from entities instead of a student written Player class
@@ -173,8 +215,8 @@ cafeteria = Cafeteria(WIDTH//2,HEIGHT//2+200, state.player)
 state.rooms_group.add(cafeteria)
 
 # Add entities
-crate = Crate(0,0)
-state.entities_group.add(crate)
+#crate = Crate(0,0,state)
+#state.entities_group.add(crate)
 
 # GAME LOOP
 while True:

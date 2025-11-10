@@ -5,6 +5,7 @@ WIDTH = 1280  # Width of the virtual screen - will be scaled based on user setti
 HEIGHT = 720  # Height of the virtual screen - will be scaled based on user settings
 FPS = 60
 WORLD_RECT = pygame.Rect(0, 0, 1, 1)  # World boundary placeholder (will be updated after loading the map image)
+DEFAULT_INTERACT_RADIUS = 120
 
 # Player setup
 #PLAYER_START_X = WIDTH//2

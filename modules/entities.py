@@ -427,6 +427,7 @@ class BasePlayer(pygame.sprite.Sprite):
 
         self.playable = playable
         self.input_enabled = True
+        self.interact_pressed =False
 
         # facing & animation state (mirrors your original behaviour)
         self.facing = "right"           # "left" or "right"
@@ -782,9 +783,7 @@ class GameEntity(pygame.sprite.Sprite):
         self.x += velocity_x
         self.y += velocity_y
         self.rect.center = (self.x, self.y)
-    
-    #def update(self):
-        #self.rect = self.image.get_rect(center=(self.x-self.player.x+(WIDTH//2),self.y-self.player.y+(HEIGHT//2)))
+
     def update(self, cam_x=None, cam_y=None, screen_w=None, screen_h=None):
         """
         Update screen-space rect using camera (defaults to your local player as camera).
@@ -844,3 +843,51 @@ class Cafeteria(pygame.sprite.Sprite):
             for hitbox in self.hitboxes:
                 pygame.draw.polygon(self.image, (255,0,0), hitbox)
 
+
+class HUD:
+    def __init__(self, font_name=None, font_size=20, pad=10, max_msgs=5):
+        self.font = pygame.font.SysFont(font_name, font_size)
+        self.pad = pad
+        self.max_msgs = max_msgs
+        self.messages = []  # list of dicts: {text, color, t_end}
+        self.score = 0
+
+    def set_score(self, value):
+        self.score = int(value)
+
+    def add_msg(self, text, color=(255, 255, 0), duration_ms=1500):
+        now = pygame.time.get_ticks()
+        self.messages.append({
+            "text": str(text),
+            "color": color,
+            "t_end": now + duration_ms
+        })
+        if len(self.messages) > self.max_msgs:
+            self.messages.pop(0)
+
+    def update(self):
+        now = pygame.time.get_ticks()
+        self.messages = [m for m in self.messages if m["t_end"] > now]
+
+    def draw(self, screen):
+        sw, sh = screen.get_size()
+        x_right = sw - self.pad
+
+        # 1) score in top-right
+        score_surf = self.font.render(f"Score: {self.score}", True, (255, 255, 255))
+        # soft shadow
+        screen.blit(score_surf, (x_right - score_surf.get_width() + 1, self.pad + 1))
+        screen.blit(score_surf, (x_right - score_surf.get_width(), self.pad))
+
+        # 2) stacked toasts under score
+        y = self.pad + score_surf.get_height() + 6
+        for m in self.messages:
+            surf = self.font.render(m["text"], True, m["color"])
+            # draw aligned to right edge
+            x = x_right - surf.get_width()
+            # subtle backdrop for readability
+            back = pygame.Surface(surf.get_size(), pygame.SRCALPHA)
+            back.fill((0, 0, 0, 100))
+            screen.blit(back, (x - 4, y - 2))
+            screen.blit(surf, (x, y))
+            y += surf.get_height() + 4
