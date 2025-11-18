@@ -6,3 +6,4 @@ modules/__pycache__/
 .DS_Store
 Thumbs.db
 __pycache__/student_code.cpython-310.pyc
+*.pyc
